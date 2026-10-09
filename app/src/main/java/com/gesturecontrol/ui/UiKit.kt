@@ -11,9 +11,11 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import com.gesturecontrol.R
 import com.google.android.material.button.MaterialButton
@@ -93,6 +95,113 @@ class UiKit(private val context: Context) {
         }
         includeFontPadding = false
     }
+
+    // ------------------------------------------------------------ 顶栏/侧栏
+
+    /**
+     * 内容区固定顶栏：菜单按钮 + 页面标题 + 可选状态胶囊。
+     * 固定而不是随内容滚动 —— 否则滚到下面就没法打开侧边栏了。
+     */
+    fun topBar(
+        title: String,
+        statusText: String? = null,
+        statusOk: Boolean = true,
+        statusWarn: Boolean = false,
+        onMenu: () -> Unit
+    ): LinearLayout {
+        val bar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(10), dp(14), dp(10))
+        }
+
+        val menu = ImageView(context).apply {
+            setImageDrawable(AppCompatResources.getDrawable(context, R.drawable.ic_menu))
+            imageTintList = ColorStateList.valueOf(onSurface)
+            scaleType = ImageView.ScaleType.CENTER
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            isClickable = true
+            background = ripple(adjustAlpha(onSurface, 0.12f), dp(24))
+            setOnClickListener { onMenu() }
+            contentDescription = "打开侧边栏"
+        }
+        bar.addView(menu, LinearLayout.LayoutParams(dp(48), dp(48)))
+
+        bar.addView(
+            text(title, 19f, onSurface, bold = true),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(6)
+            }
+        )
+
+        if (statusText != null) {
+            bar.addView(pill(statusText, statusOk, statusWarn))
+        }
+        return bar
+    }
+
+    /** 侧边栏的导航项。选中态用主色底 + 主色字，并带一条左侧强调条。 */
+    fun sidebarItem(
+        parent: LinearLayout,
+        label: String,
+        subtitle: String,
+        selected: Boolean,
+        onClick: () -> Unit
+    ): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            isClickable = true
+            background = if (selected) {
+                rounded(adjustAlpha(primary, 0.16f), dp(12))
+            } else {
+                null
+            }
+            setOnClickListener { onClick() }
+        }
+
+        val accent = View(context).apply {
+            setBackgroundColor(if (selected) primary else Color.TRANSPARENT)
+        }
+        row.addView(accent, LinearLayout.LayoutParams(dp(3), dp(30)).apply {
+            marginEnd = dp(11)
+        })
+
+        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(text(label, 15f, if (selected) primary else onSurface, bold = selected))
+        box.addView(
+            text(
+                subtitle, 11f,
+                if (selected) adjustAlpha(primary, 0.85f) else onSurfaceFaint
+            ).apply { setPadding(0, dp(2), 0, 0) }
+        )
+        row.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        parent.addView(row, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(2) })
+        return row
+    }
+
+    /** 侧边栏里的小状态行 */
+    fun sidebarStatus(parent: LinearLayout, label: String, value: String, ok: Boolean) {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), dp(5), dp(6), dp(5))
+        }
+        row.addView(
+            text(label, 12f, onSurfaceVariant),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        row.addView(text(value, 12f, if (ok) success else danger, bold = true))
+        parent.addView(row)
+    }
+
+    /** 简单的按下反馈，给自绘的可点击区域用 */
+    fun ripple(color: Int, radius: Int): GradientDrawable = rounded(color, radius)
 
     // ---------------------------------------------------------------- 卡片
 
