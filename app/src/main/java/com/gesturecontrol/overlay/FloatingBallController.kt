@@ -18,11 +18,10 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import com.gesturecontrol.a11y.ControlAccessibilityService
 import com.gesturecontrol.core.AppLog
 import com.gesturecontrol.core.Command
 import com.gesturecontrol.core.CommandBus
-import com.gesturecontrol.core.Prefs
+import com.gesturecontrol.core.RuntimeState
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -39,6 +38,8 @@ import kotlin.math.roundToInt
  */
 class FloatingBallController(
     private val context: Context,
+    /** 真实运行状态由 ControlService 提供，悬浮球不自己猜 */
+    private val stateProvider: () -> RuntimeState,
     private val onOpenApp: () -> Unit,
     private val onToggleVoice: () -> Boolean,
     private val onToggleAir: () -> Boolean
@@ -53,6 +54,7 @@ class FloatingBallController(
     private var stateView: TextView? = null
     private var debugView: TextView? = null
 
+    @Volatile
     private var expanded = false
 
     // ---------------------------------------------------------------- 配色
@@ -67,6 +69,7 @@ class FloatingBallController(
     private val outline get() = if (isNight) 0xFF2E3644.toInt() else 0xFFD8DEE7.toInt()
     private val primary get() = if (isNight) 0xFF5B9DFF.toInt() else 0xFF2563EB.toInt()
     private val success get() = if (isNight) 0xFF3DDC97.toInt() else 0xFF1B7F4B.toInt()
+    private val warning get() = if (isNight) 0xFFFFB84D.toInt() else 0xFFA15C00.toInt()
     private val danger get() = if (isNight) 0xFFFF6B6B.toInt() else 0xFFC62828.toInt()
     private val onSurface get() = if (isNight) 0xFFE8ECF4.toInt() else 0xFF16191F.toInt()
     private val onSurfaceVariant get() = if (isNight) 0xFF96A0B0.toInt() else 0xFF5A6472.toInt()
@@ -101,6 +104,9 @@ class FloatingBallController(
     private val hideStatus = Runnable { statusView?.visibility = View.GONE }
 
     val isShowing: Boolean get() = root != null
+
+    /** 面板是否展开。ControlService 靠它决定要不要算隔空手势的调试字符串 */
+    val isExpanded: Boolean get() = expanded
 
     // ------------------------------------------------------------ 显示/隐藏
 
@@ -304,25 +310,23 @@ class FloatingBallController(
         layoutParams = wrapParams(top = dp(3))
     }
 
-    private fun voiceLabel() = if (Prefs.voiceEnabled) "语音：开" else "语音：关"
+    private fun voiceLabel() = stateProvider().voiceLabel
 
-    private fun airLabel() = if (Prefs.airEnabled) "手势：开" else "手势：关"
+    private fun airLabel() = stateProvider().airLabel
 
     fun refreshToggles() {
         handler.post {
             val p = panel ?: return@post
             p.findViewWithTag<TextView>(TAG_VOICE)?.text = voiceLabel()
             p.findViewWithTag<TextView>(TAG_AIR)?.text = airLabel()
-            stateView?.text = buildString {
-                append("无障碍 ")
-                append(if (ControlAccessibilityService.isConnected()) "✓" else "✗")
-                append(" · 语音 ")
-                append(if (Prefs.voiceEnabled) "开" else "关")
-                append(" · 手势 ")
-                append(if (Prefs.airEnabled) "开" else "关")
-            }
+            val state = stateProvider()
+            stateView?.text = state.summary()
             stateView?.setTextColor(
-                if (ControlAccessibilityService.isConnected()) success else danger
+                when {
+                    !state.accessibility -> danger
+                    state.anyPaused -> warning
+                    else -> success
+                }
             )
         }
     }
@@ -339,8 +343,13 @@ class FloatingBallController(
         }
     }
 
-    /** 只在面板展开时更新调试信息，避免一直刷新耗电 */
+    /**
+     * 只在面板展开时更新调试信息。
+     * 这里在**调用线程**先判断一次 —— 隔空手势每帧都会调它（约 20 次/秒），
+     * 面板收起时不该往主线程投任务。
+     */
     fun showDebug(text: String) {
+        if (!expanded) return
         handler.post {
             if (!expanded) return@post
             debugView?.text = text

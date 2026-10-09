@@ -19,6 +19,13 @@ class AirGestureController {
 
     val debugInfo: String get() = detector.debugInfo
 
+    /** 悬浮球面板展开时才需要调试字符串，收起时不生成 */
+    var debugEnabled: Boolean
+        get() = detector.debugEnabled
+        set(value) {
+            detector.debugEnabled = value
+        }
+
     fun onNoHand(t: Long) = detector.onHandLost(t)
 
     fun onResult(result: HandLandmarkerResult, t: Long) {

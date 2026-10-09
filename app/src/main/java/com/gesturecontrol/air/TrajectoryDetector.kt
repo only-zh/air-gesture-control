@@ -43,6 +43,13 @@ class TrajectoryDetector {
     @Volatile
     var debugInfo: String = ""
 
+    /**
+     * 是否生成调试字符串。默认关 —— 每帧拼一次 String.format
+     * 在 20fps 下是纯浪费，只有悬浮球面板展开时才需要。
+     */
+    @Volatile
+    var debugEnabled: Boolean = false
+
     val isPinching: Boolean get() = pinchSince != 0L
 
     fun reset() {
@@ -104,7 +111,7 @@ class TrajectoryDetector {
             samples.clear()
         }
 
-        debugInfo = buildDebug(t, x, y, pinchRatio, palmOpen)
+        debugInfo = if (debugEnabled) buildDebug(t, x, y, pinchRatio, palmOpen) else ""
         return gesture
     }
 

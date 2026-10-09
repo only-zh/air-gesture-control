@@ -1,6 +1,7 @@
 package com.gesturecontrol.a11y
 
 import android.view.accessibility.AccessibilityEvent
+import com.gesturecontrol.core.ForegroundState
 
 /**
  * 跟踪当前前台应用与页面，用来判断「是不是在抖音」「是不是在直播间」。
@@ -28,6 +29,8 @@ class ScreenWatcher {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 event.packageName?.let { currentPackage = it.toString() }
                 event.className?.let { currentClass = it.toString() }
+                // 广播出去，让 ControlService 决定要不要继续开摄像头/麦克风
+                ForegroundState.update(event.packageName)
             }
         }
     }
@@ -35,6 +38,7 @@ class ScreenWatcher {
     fun setFrom(rootPackage: CharSequence?, rootClass: CharSequence?) {
         rootPackage?.let { currentPackage = it.toString() }
         rootClass?.let { currentClass = it.toString() }
+        ForegroundState.update(rootPackage)
     }
 
     val isDouyin: Boolean

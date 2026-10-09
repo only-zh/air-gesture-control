@@ -241,7 +241,7 @@ class MainActivity : AppCompatActivity() {
             ui.divider(body)
             ui.switchRow(
                 body, "只在目标 App 前台时响应",
-                "防止在微信、相册里被误触发，强烈建议保持开启",
+                "除了挡住误触发，它还会在切走时暂停摄像头和麦克风 —— 最省电的一项",
                 Prefs.targetOnly
             ) { Prefs.targetOnly = it }
             ui.switchRow(body, "悬浮球显示执行结果", null, Prefs.overlayToast) {
@@ -364,6 +364,12 @@ class MainActivity : AppCompatActivity() {
             ui.slider(body, "隔空捏合阈值", Prefs.airPinchThreshold, 20, 80, 1, 0.01f, 2) {
                 Prefs.airPinchThreshold = it
             }
+            ui.divider(body)
+            ui.caption(body, "语音静默暂停：多久没命中命令就自动停听音。0 = 不停（默认）。")
+            ui.slider(
+                body, "语音静默暂停（秒）",
+                (Prefs.voiceIdleStopMs / 1000).toFloat(), 0, 600, 10, 1f, 0
+            ) { Prefs.voiceIdleStopMs = it.toInt() * 1000 }
             ui.button(body, "恢复默认参数", UiKit.ButtonStyle.TONAL) {
                 Prefs.resetTuning()
                 render()

@@ -25,7 +25,15 @@ import java.util.concurrent.Executors
 /**
  * 前置摄像头 + MediaPipe HandLandmarker（LIVE_STREAM）。
  *
- * 640x480、KEEP_ONLY_LATEST，手机上大约 15-25fps，足够判定挥手和捏合。
+ * 640x480、KEEP_ONLY_LATEST，手机上大约 15-25fps。
+ *
+ * 摄像头是**整个 App 最大的耗电来源**，所以生命周期分三档：
+ *   - [start]   加载模型 + 绑定摄像头开始采集
+ *   - [pause]   只解绑摄像头、**保留已加载的模型**（模型重载要几百毫秒）
+ *   - [stop]    解绑并释放模型
+ *
+ * ControlService 会在息屏或切到非目标 App 时调 pause()，
+ * 这样「锁屏放兜里还在跑摄像头」这种事就不会发生了。
  */
 class HandTracker(
     private val context: Context,
@@ -37,19 +45,65 @@ class HandTracker(
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
     private var executor: ExecutorService? = null
+    private var owner: LifecycleOwner? = null
 
     @Volatile
     private var lastTimestamp = 0L
 
-    val isRunning: Boolean get() = analysis != null
+    /** 真的在采集（区别于 Prefs.airEnabled「用户想开着」） */
+    @Volatile
+    var isCapturing: Boolean = false
+        private set
+
+    /** 模型已加载，可以快速恢复 */
+    val isPrepared: Boolean get() = landmarker != null
+
+    // ---------------------------------------------------------------- 生命周期
 
     fun start(lifecycleOwner: LifecycleOwner) {
-        if (isRunning) return
-        try {
-            landmarker = createLandmarker()
-        } catch (t: Throwable) {
-            AppLog.add("Air", "MediaPipe 初始化失败：${t.javaClass.simpleName} ${t.message}")
-            onError("手势模型初始化失败：${t.message}")
+        owner = lifecycleOwner
+        if (landmarker == null) {
+            try {
+                landmarker = createLandmarker()
+            } catch (t: Throwable) {
+                AppLog.add("Air", "MediaPipe 初始化失败：${t.javaClass.simpleName} ${t.message}")
+                onError("手势模型初始化失败：${t.message}")
+                return
+            }
+        }
+        bindCamera()
+    }
+
+    /** 只解绑摄像头，模型留着，恢复时不用重新加载 */
+    fun pause() {
+        if (!isCapturing) return
+        unbindCamera()
+        AppLog.add("Air", "隔空手势已暂停（模型保留在内存里）")
+    }
+
+    fun resume() {
+        if (isCapturing) return
+        if (owner == null) return
+        bindCamera()
+    }
+
+    fun stop() {
+        unbindCamera()
+        quietly { landmarker?.close() }
+        landmarker = null
+        owner = null
+        AppLog.add("Air", "隔空手势已停止")
+    }
+
+    // ---------------------------------------------------------------- 绑定
+
+    private fun bindCamera() {
+        if (isCapturing) return
+        val lifecycleOwner = owner ?: return
+
+        val cached = provider
+        if (cached != null) {
+            doBind(cached, lifecycleOwner)
             return
         }
 
@@ -58,58 +112,69 @@ class HandTracker(
             try {
                 val cameraProvider = future.get()
                 provider = cameraProvider
-
-                val resolution = ResolutionSelector.Builder()
-                    .setResolutionStrategy(
-                        ResolutionStrategy(
-                            Size(640, 480),
-                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
-                        )
-                    )
-                    .build()
-
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setResolutionSelector(resolution)
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                    .build()
-
-                executor = Executors.newSingleThreadExecutor()
-                imageAnalysis.setAnalyzer(executor!!) { proxy -> analyze(proxy) }
-                analysis = imageAnalysis
-
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    CameraSelector.DEFAULT_FRONT_CAMERA,
-                    imageAnalysis
-                )
-                AppLog.add("Air", "前置摄像头已启动，隔空手势就绪")
+                doBind(cameraProvider, lifecycleOwner)
             } catch (t: Throwable) {
-                AppLog.add("Air", "相机启动失败：${t.javaClass.simpleName} ${t.message}")
+                AppLog.add("Air", "相机初始化失败：${t.javaClass.simpleName} ${t.message}")
                 onError("相机启动失败：${t.message}")
-                stop()
+                unbindCamera()
             }
         }, ContextCompat.getMainExecutor(context))
     }
 
-    fun stop() {
+    private fun doBind(cameraProvider: ProcessCameraProvider, lifecycleOwner: LifecycleOwner) {
+        try {
+            val resolution = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        Size(640, 480),
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+                )
+                .build()
+
+            val imageAnalysis = ImageAnalysis.Builder()
+                .setResolutionSelector(resolution)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .build()
+
+            executor = Executors.newSingleThreadExecutor()
+            imageAnalysis.setAnalyzer(executor!!) { proxy -> analyze(proxy) }
+            analysis = imageAnalysis
+
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                CameraSelector.DEFAULT_FRONT_CAMERA,
+                imageAnalysis
+            )
+            isCapturing = true
+            lastTimestamp = 0L
+            AppLog.add("Air", "前置摄像头已启动，隔空手势就绪")
+        } catch (t: Throwable) {
+            AppLog.add("Air", "相机绑定失败：${t.javaClass.simpleName} ${t.message}")
+            onError("相机启动失败：${t.message}")
+            unbindCamera()
+        }
+    }
+
+    private fun unbindCamera() {
+        isCapturing = false
         analysis?.clearAnalyzer()
         analysis = null
-        try {
-            provider?.unbindAll()
-        } catch (_: Throwable) {
-        }
-        provider = null
+        quietly { provider?.unbindAll() }
         executor?.shutdown()
         executor = null
+    }
+
+    private inline fun quietly(block: () -> Unit) {
         try {
-            landmarker?.close()
+            block()
         } catch (_: Throwable) {
         }
-        landmarker = null
-        AppLog.add("Air", "隔空手势已停止")
     }
+
+    // ---------------------------------------------------------------- 推理
 
     private fun createLandmarker(): HandLandmarker {
         val baseOptions = BaseOptions.builder()
@@ -137,7 +202,7 @@ class HandTracker(
 
     private fun analyze(proxy: ImageProxy) {
         val tracker = landmarker
-        if (tracker == null) {
+        if (tracker == null || !isCapturing) {
             proxy.close()
             return
         }
