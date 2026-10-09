@@ -2,7 +2,7 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.1.1] - 2026-10-09
 
 ### 修复
 
@@ -30,7 +30,9 @@
 
 ### 说明
 
-本版本尚未真机验证。息屏/切后台暂停、以及「待机」状态显示都需要在真机上确认。
+- 本版本的修复内容**尚未真机验证**。息屏/切后台暂停、以及「待机」状态显示
+  都需要在真机上确认，验证步骤见该版本的 Release 说明。
+- 与 0.1.0 **签名相同**，可直接覆盖安装，不需要卸载。
 
 ## [0.1.0] - 2026-10-09
 
@@ -89,3 +91,4 @@
 - 构建产物为 debug 签名但**非 debuggable** 的 release 变体，可直接覆盖安装 debug 包。
 
 [0.1.0]: https://github.com/only-zh/air-gesture-control/releases/tag/v0.1.0
+[0.1.1]: https://github.com/only-zh/air-gesture-control/releases/tag/v0.1.1
