@@ -2,9 +2,12 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.1.2] - 2026-10-09
 
 ### 工程
+
+**本版本没有任何功能改动**，APK 与 0.1.1 除了版本号之外完全一致。
+发这一版是为了打通自动发版流程，并用一个真实的 Release 验证它。
 
 - 新增 GitHub Actions：
   - `ci.yml` —— main 推送与 PR 上跑单元测试 + 编译（不下载模型，跑得快）
@@ -104,3 +107,4 @@
 
 [0.1.0]: https://github.com/only-zh/air-gesture-control/releases/tag/v0.1.0
 [0.1.1]: https://github.com/only-zh/air-gesture-control/releases/tag/v0.1.1
+[0.1.2]: https://github.com/only-zh/air-gesture-control/releases/tag/v0.1.2
