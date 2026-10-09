@@ -1,0 +1,23 @@
+# 统一换行符，避免 Windows 贡献者提交进来一堆 CRLF diff
+* text=auto eol=lf
+
+# 二进制文件不要做行尾转换
+*.png binary
+*.jpg binary
+*.jar binary
+*.aar binary
+*.apk binary
+*.keystore binary
+*.so binary
+*.task binary
+*.mdl binary
+*.fst binary
+*.ie binary
+*.dubm binary
+*.mat binary
+
+# 让 GitHub 语言统计不被生成物干扰
+*.gradle.kts linguist-language=Kotlin
+
+# 模型与文档的 diff 折叠
+docs/*.png -diff

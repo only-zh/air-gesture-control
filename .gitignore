@@ -1,0 +1,30 @@
+# ---- 构建产物 ----
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+
+# ---- 本地工具链（JDK / Android SDK / Gradle / 模型缓存）----
+.toolchain/
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ---- 签名密钥 ----
+# 公开仓库不放密钥文件，tools/setup-toolchain.sh 会在本地生成
+app/keystore/
+
+# ---- 模型资源 ----
+# 语音模型解包后 65MB、手势模型 7.8MB，都不入库。
+# 用 tools/setup-toolchain.sh（手势模型）和 tools/fetch-vosk-model.sh（语音模型）拉取。
+app/src/main/assets/model-cn/
+app/src/main/assets/hand_landmarker.task
+
+# ---- 运行期产物 ----
+*.apk
+*.aab
+*.hprof

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">隔空控制</string>
+    <string name="accessibility_label">隔空控制 · 手势执行服务</string>
+    <string name="accessibility_desc">用于向抖音发送上滑、下滑、点赞、收藏、进/退直播间等手势与点击。本服务不收集、不上传任何屏幕内容。</string>
+    <string name="inspector_title">节点探测与校准</string>
+    <string name="notif_channel_name">控制服务</string>
+    <string name="notif_title">隔空控制运行中</string>
+</resources>

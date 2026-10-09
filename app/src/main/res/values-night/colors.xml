@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色配色。名字必须和 values/colors.xml 完全一致。 -->
+<resources>
+    <color name="bg">#0E1116</color>
+    <color name="surface">#171B22</color>
+    <color name="surface_container">#1E232C</color>
+    <color name="surface_variant">#262C37</color>
+    <color name="outline">#2E3644</color>
+
+    <color name="primary">#5B9DFF</color>
+    <color name="on_primary">#06121F</color>
+    <color name="primary_container">#1B2C45</color>
+
+    <color name="success">#3DDC97</color>
+    <color name="warning">#FFB84D</color>
+    <color name="danger">#FF6B6B</color>
+
+    <color name="on_surface">#E8ECF4</color>
+    <color name="on_surface_variant">#96A0B0</color>
+    <color name="on_surface_faint">#6B7686</color>
+
+    <color name="code_bg">#0A0D12</color>
+    <color name="code_fg">#3DDC97</color>
+</resources>

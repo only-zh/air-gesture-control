@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  浅色配色（默认）。
+  深色在 values-night/colors.xml 里，两边必须定义**同名**的颜色，
+  这样代码里 ContextCompat.getColor 会自动跟着系统主题走。
+-->
+<resources>
+    <color name="bg">#F4F6F9</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_container">#EFF2F6</color>
+    <color name="surface_variant">#E6EAF0</color>
+    <color name="outline">#D8DEE7</color>
+
+    <color name="primary">#2563EB</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#DCE7FF</color>
+
+    <!--
+      浅色下的语义色必须比深色更深：深色用的 #3DDC97 在白底上对比度不够，
+      文字会糊成一片。这组是按白底可读性重新选的。
+    -->
+    <color name="success">#1B7F4B</color>
+    <color name="warning">#A15C00</color>
+    <color name="danger">#C62828</color>
+
+    <color name="on_surface">#16191F</color>
+    <color name="on_surface_variant">#5A6472</color>
+    <color name="on_surface_faint">#8B94A2</color>
+
+    <!-- 日志/代码块 -->
+    <color name="code_bg">#EEF1F5</color>
+    <color name="code_fg">#14603F</color>
+</resources>
