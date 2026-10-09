@@ -62,18 +62,12 @@ jobs:
             exit 1
           fi
 
-      - name: 校验签名密钥已配置
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "::error::缺少仓库 Secret KEYSTORE_BASE64。没有它只能产出未签名的 APK，装不上。配置方法见 README「自动发版」。"
-            exit 1
-          fi
-
       # ============================================================
       #  依赖准备
+      #
+      #  密钥校验刻意放在模型下载**之后**：这样即使还没配置密钥，
+      #  这一趟也能把最有风险的「在 Linux 上下载并拼装 44MB 模型」验证掉，
+      #  而不是刚开头就退出、什么都没测到。
       # ============================================================
 
       - name: 缓存模型
@@ -99,6 +93,16 @@ jobs:
           if [ -d app/src/main/assets/model-cn ]; then echo "命中缓存，跳过"; exit 0; fi
           # 这个脚本用 8 路并行 Range 请求下载（官方源单连接被限速到 ~30KB/s）
           bash tools/fetch-vosk-model.sh
+
+      - name: 校验签名密钥已配置
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::缺少仓库 Secret KEYSTORE_BASE64。没有它只能产出未签名的 APK，装不上。配置方法见 README「自动发版」。"
+            exit 1
+          fi
 
       - name: 还原签名密钥
         env:

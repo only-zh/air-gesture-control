@@ -21,7 +21,11 @@ CHUNK=$(( (TOTAL + CONNECTIONS - 1) / CONNECTIONS ))
 
 seg_start() { echo $(( $1 * CHUNK )); }
 seg_end()   { local e=$(( $1 * CHUNK + CHUNK - 1 )); [ "$e" -ge "$TOTAL" ] && e=$(( TOTAL - 1 )); echo "$e"; }
-seg_have()  { [ -f "$TC/vosk.part$1" ] && (stat -f%z "$TC/vosk.part$1" 2>/dev/null || stat -c%s "$TC/vosk.part$1") || echo 0; }
+# 用 wc -c 而不是 stat：BSD 和 GNU 的 stat 参数完全不同，
+# 而这段脚本既要在 macOS 本地跑，也要在 Linux 的 CI 里跑。
+file_size() { [ -f "$1" ] && wc -c < "$1" | tr -d ' ' || echo 0; }
+
+seg_have()  { file_size "$TC/vosk.part$1"; }
 seg_want()  { echo $(( $(seg_end "$1") - $(seg_start "$1") + 1 )); }
 
 # 最多重试 12 轮，每轮只补下没下完的段（断点续传）
@@ -56,7 +60,7 @@ for i in $(seq 0 $((CONNECTIONS-1))); do
 done
 rm -f "$TC"/vosk.part*
 
-GOT=$(stat -f%z "$ZIP" 2>/dev/null || stat -c%s "$ZIP")
+GOT=$(file_size "$ZIP")
 [ "$GOT" = "$TOTAL" ] || { echo "拼接后大小 $GOT 与 $TOTAL 不符" >&2; exit 1; }
 
 rm -rf "$TC/vosk.tmp"; mkdir -p "$TC/vosk.tmp"
