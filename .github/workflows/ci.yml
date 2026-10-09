@@ -25,13 +25,12 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      # 不用 android-actions/setup-android：它在本仓库连续两次失败在
+      # 「安装 Android SDK」这一步，而日志需要管理员权限才能读，无法排查。
+      # 这个脚本是显式下载 cmdline-tools，逻辑与 tools/setup-toolchain.sh 一致，
+      # 并且已在本地完整验证过。
       - name: 安装 Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 安装 SDK 组件
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager --install "platforms;android-35" "build-tools;34.0.0" > /dev/null
+        run: bash tools/ci-setup-android-sdk.sh
 
       # 注意：这里**刻意不下载模型**（语音 65MB + 手势 7.8MB）。
       # 单元测试和编译都不需要它们，assets 缺失不影响构建，
