@@ -28,3 +28,6 @@ app/src/main/assets/hand_landmarker.task
 *.apk
 *.aab
 *.hprof
+
+# 待发布产物目录（本地临时，不入库）
+dist/
