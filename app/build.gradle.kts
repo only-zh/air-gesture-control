@@ -21,23 +21,40 @@ android {
         }
     }
 
+    /**
+     * 签名密钥。
+     *
+     * 本地：`tools/setup-toolchain.sh` 会在 `app/keystore/debug.keystore` 生成一个
+     * 标准 debug 密钥（口令 `android`）。
+     *
+     * CI：GitHub Actions 把仓库 Secret 里的密钥解码到**同一个路径**，
+     * 口令通过环境变量传入。路径和口令都对齐，所以 CI 出的包和本地出的包
+     * 签名一致，用户可以直接覆盖升级。
+     *
+     * 密钥文件不存在时**不注册签名配置**：这样别人 fork 下来、或者 CI 里没有
+     * 配 Secret 时，`assembleDebug` 只是产出未签名的包，而不是直接构建失败。
+     * 注意发版流程里必须显式校验 Secret 是否存在，否则会发出去一个装不上的包。
+     */
+    val keystoreFile = file("keystore/debug.keystore")
+
     signingConfigs {
-        // 用工程内自带的 keystore，避免依赖 ~/.android/debug.keystore
-        create("local") {
-            storeFile = file("keystore/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (keystoreFile.exists()) {
+            create("local") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("local")
+            signingConfig = signingConfigs.findByName("local")
             isMinifyEnabled = false
         }
         release {
-            signingConfig = signingConfigs.getByName("local")
+            signingConfig = signingConfigs.findByName("local")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

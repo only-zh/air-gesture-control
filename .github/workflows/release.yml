@@ -1,0 +1,171 @@
+name: Release
+
+# 只在推送 v* 标签时触发。
+#
+# 为什么用标签而不是分支：这个工作流要读仓库 Secret（签名密钥），
+# 而标签只有协作者能推 —— 外部 PR 触发不了它，Secret 不会泄漏。
+on:
+  push:
+    tags:
+      - 'v*'
+
+# gh release create/upload 需要写 contents
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 SDK 组件
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-35" "build-tools;34.0.0" > /dev/null
+
+      # ============================================================
+      #  发版前的两道守门员：任何一条不过就直接中止，不产出错误的包
+      # ============================================================
+
+      - name: 校验标签与 versionName 一致
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts \
+                    | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "标签 = $TAG"
+          echo "versionName = $VERSION"
+          if [ "v${VERSION}" != "$TAG" ]; then
+            echo "::error::标签 ($TAG) 与 app/build.gradle.kts 里的 versionName ($VERSION) 对不上。先改版本号再打标签。"
+            exit 1
+          fi
+
+      - name: 校验发布说明存在
+        run: |
+          set -euo pipefail
+          NOTES="docs/release-notes-${GITHUB_REF_NAME}.md"
+          if [ ! -f "$NOTES" ]; then
+            echo "::error::找不到 $NOTES。发版前请先写好发布说明（可从上一个版本复制改写）。"
+            exit 1
+          fi
+
+      - name: 校验签名密钥已配置
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::缺少仓库 Secret KEYSTORE_BASE64。没有它只能产出未签名的 APK，装不上。配置方法见 README「自动发版」。"
+            exit 1
+          fi
+
+      # ============================================================
+      #  依赖准备
+      # ============================================================
+
+      - name: 缓存模型
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/src/main/assets/hand_landmarker.task
+            app/src/main/assets/model-cn
+          key: models-v1
+
+      - name: 下载手势模型
+        run: |
+          set -euo pipefail
+          TARGET=app/src/main/assets/hand_landmarker.task
+          if [ -s "$TARGET" ]; then echo "命中缓存，跳过"; exit 0; fi
+          mkdir -p "$(dirname "$TARGET")"
+          curl -fL --retry 3 -o "$TARGET" \
+            "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+
+      - name: 下载语音模型
+        run: |
+          set -euo pipefail
+          if [ -d app/src/main/assets/model-cn ]; then echo "命中缓存，跳过"; exit 0; fi
+          # 这个脚本用 8 路并行 Range 请求下载（官方源单连接被限速到 ~30KB/s）
+          bash tools/fetch-vosk-model.sh
+
+      - name: 还原签名密钥
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p app/keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > app/keystore/debug.keystore
+
+      # ============================================================
+      #  测试与构建
+      # ============================================================
+
+      - name: 单元测试
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: 构建 release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: 重命名产物、算校验值、拼发布说明
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          APK="air-gesture-control-${TAG}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+
+          # 校验和由工作流自己算，保证和实际上传的那个文件一致
+          # （CI 环境和本地的构建产物不一定逐字节相同，所以不能照抄本地算出来的值）
+          HASH=$(sha256sum "$APK" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK")
+          {
+            cat "docs/release-notes-${TAG}.md"
+            printf '\n---\n\n## 本次发布的构建信息\n\n'
+            printf '| 项 | 值 |\n|---|---|\n'
+            printf '| 文件 | `%s` |\n' "$APK"
+            printf '| 大小 | %s 字节 |\n' "$SIZE"
+            printf '| SHA-256 | `%s` |\n' "$HASH"
+            printf '| 构建 | GitHub Actions（JDK 21 / Gradle 8.9 / AGP 8.7.3） |\n'
+          } > release-body.md
+          cat release-body.md
+
+          {
+            echo "APK=$APK"
+            echo "BODY=release-body.md"
+          } >> "$GITHUB_ENV"
+
+      - name: 创建 Release 并上传附件
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          TITLE="隔空控制 ${TAG}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # 同一个标签重跑（比如修了构建脚本）：更新说明并覆盖附件
+            echo "Release 已存在，更新说明与附件"
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$BODY"
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes-file "$BODY" \
+              --verify-tag \
+              "$APK"
+          fi

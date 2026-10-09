@@ -272,6 +272,67 @@ Vosk 官方源对单连接限速到约 30KB/s，44MB 要下 25 分钟。
 
 两个模型都不入版本库（加起来 73MB），已在 `.gitignore` 里排除。
 
+### 自动发版（GitHub Actions）
+
+仓库里有两条工作流：
+
+| 工作流 | 触发 | 做什么 |
+|---|---|---|
+| `.github/workflows/ci.yml` | 推送到 main、以及所有 PR | 跑单元测试 + 编译 debug 包。**刻意不下载模型** —— 测试和编译都不需要它们，所以 CI 很快 |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 | 下载模型 → 跑测试 → 构建 release 包 → 创建 Release 并上传 APK |
+
+所以发一版只需要三步：
+
+```bash
+# 1. 改版本号（app/build.gradle.kts）
+#    versionCode = 3
+#    versionName = "0.1.2"
+
+# 2. 写发布说明（工作流会校验它存在，缺了直接失败）
+#    docs/release-notes-v0.1.2.md
+#    注意：不要在说明里写死 SHA-256，工作流会把本次构建的真实校验值附加在末尾
+
+# 3. 提交并打标签
+git commit -am "release: v0.1.2"
+git tag -a v0.1.2 -m "隔空控制 v0.1.2"
+git push origin main
+git push origin v0.1.2
+```
+
+工作流内置了三道守门员，任何一条不过就中止，**不会发出去一个错误的包**：
+
+1. **标签必须和 `versionName` 一致** —— 防的正是「打了标签忘了改版本号」这类错误
+2. **发布说明文件必须存在**
+3. **签名密钥 Secret 必须已配置** —— 否则会产出未签名、装不上的 APK
+
+> 为什么用 `push tag` 触发而不是分支：这个工作流要读仓库 Secret（签名密钥），
+> 而标签只有协作者能推，外部 PR 触发不了它，Secret 不会泄漏。
+>
+> 如果你希望发版前有人工审核环节，在 `release.yml` 的 `gh release create` 上加一个
+> `--draft` 即可：工作流跑完会生成草稿 Release，你确认后点一下 Publish。
+
+#### 一次性配置：签名密钥
+
+发版工作流需要 4 个仓库 Secret
+（`Settings → Secrets and variables → Actions → New repository secret`）：
+
+| Secret | 值 |
+|---|---|
+| `KEYSTORE_BASE64` | 密钥文件的 base64（见下面的命令） |
+| `KEYSTORE_PASSWORD` | `android` |
+| `KEY_ALIAS` | `androiddebugkey` |
+| `KEY_PASSWORD` | `android` |
+
+`KEYSTORE_BASE64` 这样生成（直接进剪贴板，不经过任何第三方）：
+
+```bash
+base64 -i app/keystore/debug.keystore | pbcopy     # macOS
+base64 -w0 app/keystore/debug.keystore             # Linux
+```
+
+**务必用你本地那个密钥文件。** 如果 CI 用了新生成的密钥，签名就和已发布的版本不一致，
+所有用户都得卸载重装才能升级。所以这个文件要单独备份好 —— 它不在版本库里。
+
 ---
 
 ## 九、工程结构

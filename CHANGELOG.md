@@ -2,6 +2,18 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 工程
+
+- 新增 GitHub Actions：
+  - `ci.yml` —— main 推送与 PR 上跑单元测试 + 编译（不下载模型，跑得快）
+  - `release.yml` —— 推送 `v*` 标签即自动构建并创建 Release、上传 APK
+- 补上标准的 Gradle wrapper（`gradlew`），CI 与贡献者可以直接构建
+- 签名配置改为：密钥文件不存在时不注册签名配置，
+  这样 fork 或未配 Secret 的环境只是产出未签名包，而不会构建失败；
+  发版工作流则显式校验 Secret 存在，避免误发装不上的包
+
 ## [0.1.1] - 2026-10-09
 
 ### 修复
