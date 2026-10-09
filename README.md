@@ -102,11 +102,29 @@ APK 体积     : 约 98 MB（两个模型都内置在里面）
 
 ### 安装
 
+**方式一：直接下载 APK（推荐）**
+
+到 [Releases](https://github.com/only-zh/air-gesture-control/releases/latest) 下载 `air-gesture-control-v0.1.0.apk`
+（约 94.5 MB，两个模型已内置），传到手机上安装即可，需要允许「安装未知来源应用」。
+
+下载后可以校验一下完整性：
+
 ```bash
-adb install -r app-debug.apk
+shasum -a 256 air-gesture-control-v0.1.0.apk
+# ad428d1fedb87f9148e28f8de658c5fb6d02783f0aa0edaea2a6b79ebdcafb76
 ```
 
-或者把 APK 传到手机上直接安装（需要允许「安装未知来源应用」）。
+**方式二：adb 安装**
+
+```bash
+adb install -r air-gesture-control-v0.1.0.apk
+```
+
+**方式三：自己编译** —— 见下面「[从源码构建](#八从源码构建)」。
+
+> ⚠️ 本版本使用 **debug 签名密钥**（口令为标准 Android debug 口令 `android`），
+> 任何人都能重新打包一个签名相同的 APK，**不适合正式分发**。
+> 好处是可以直接覆盖安装自己编译的 debug 包，不需要卸载。
 
 ### 一次性授权
 
