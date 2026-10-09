@@ -112,6 +112,31 @@ jobs:
           mkdir -p app/keystore
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > app/keystore/debug.keystore
 
+      - name: 校验密钥指纹
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          # 与已发布版本一致的证书指纹。
+          # KEYSTORE_BASE64 是手工粘贴的，贴错（比如贴成了新生成的密钥）会导致
+          # 签出来的包**无法覆盖已发布版本**，老用户必须卸载重装才能升级。
+          # 所以这里在构建之前就拦住，而不是等到用户装不上才发现。
+          EXPECTED="16203ca207e0274fa82078e55c7bdb0fc4a6600e3832687e67a224023da29b49"
+          ACTUAL=$(keytool -list -v \
+                     -keystore app/keystore/debug.keystore \
+                     -storepass "${KEYSTORE_PASSWORD:-android}" \
+                     -alias "${KEY_ALIAS:-androiddebugkey}" 2>/dev/null \
+                   | grep -i "SHA256:" | head -1 \
+                   | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-Z' 'a-z')
+          echo "期望指纹: $EXPECTED"
+          echo "实际指纹: $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::密钥指纹不一致。这个密钥签出来的 APK 无法覆盖已发布版本，老用户必须卸载重装。请确认 KEYSTORE_BASE64 用的是 app/keystore/debug.keystore。"
+            exit 1
+          fi
+          echo "指纹一致 ✓"
+
       # ============================================================
       #  测试与构建
       # ============================================================
